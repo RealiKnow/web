@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maz Chat</title>
+    <!-- Use Tailwind CSS for a sleek, modern, responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Use Google Font Inter for a clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the cosmic theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1a1a2e; /* Dark purple/blue background */
+            background-image: url('https://placehold.co/1920x1080/1a1a2e/transparent.png?text=');
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-attachment: fixed;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Starry background effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.1) 0%, transparent 20%),
+                        radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.1) 0%, transparent 20%);
+            background-size: 1500px 1500px;
+            animation: moveStars 120s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes moveStars {
+            from { background-position: 0 0; }
+            to { background-position: -1500px -1500px; }
+        }
+
+        .chat-container {
+            backdrop-filter: blur(10px) brightness(80%); /* Frosted glass effect */
+            -webkit-backdrop-filter: blur(10px) brightness(80%);
+            background-color: rgba(30, 30, 45, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .message-input-container {
+            backdrop-filter: blur(10px) brightness(80%);
+            -webkit-backdrop-filter: blur(10px) brightness(80%);
+            background-color: rgba(30, 30, 45, 0.6);
+        }
+
+        .messages-list {
+            scrollbar-width: thin;
+            scrollbar-color: #888 #1a1a2e;
+        }
+
+        .messages-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-list::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        .messages-list::-webkit-scrollbar-thumb {
+            background-color: #4a4a6e;
+            border-radius: 4px;
+            border: 2px solid #1a1a2e;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main Chat Container -->
+    <div class="chat-container w-full max-w-2xl mx-auto rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80vh] md:h-[90vh]">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-5 border-b border-gray-700">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+                <i class="fas fa-satellite fa-lg mr-2"></i>Maz Chat
+            </h1>
+            <div id="loading" class="text-pink-400 animate-pulse">Connecting...</div>
+        </div>
+
+        <!-- User Info Display -->
+        <div id="userInfoDisplay" class="p-3 text-center text-sm text-gray-400 bg-gray-800 border-b border-gray-700 hidden">
+            <span id="usernameDisplay" class="font-mono text-yellow-300"></span>
+            <span class="mx-2">|</span>
+            <span class="text-purple-300 font-bold">ID: <span id="simpleIdDisplay"></span></span>
+        </div>
+
+        <!-- Username Input Section -->
+        <div id="usernameSection" class="flex-1 p-5 flex flex-col items-center justify-center gap-4 hidden">
+            <p class="text-center text-gray-300">Choose a username to join the chat:</p>
+            <input type="text" id="usernameInput" placeholder="Enter your username"
+                   class="w-full p-3 rounded-full bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300">
+            <button id="saveUsernameButton" class="w-full md:w-auto p-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full shadow-lg hover:from-purple-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300">
+                Save Username
+            </button>
+        </div>
+
+        <!-- Message List -->
+        <div id="messagesList" class="messages-list flex-1 overflow-y-auto p-5 space-y-4 hidden">
+            <!-- Messages will be injected here by JavaScript -->
+        </div>
+
+        <!-- Message Input -->
+        <div id="messageInputContainer" class="message-input-container p-5 flex items-center gap-4 border-t border-gray-700 hidden">
+            <input type="text" id="messageInput" placeholder="Type a message..."
+                   class="flex-1 p-3 rounded-full bg-gray-800 text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 placeholder-gray-500">
+            <button id="sendButton" class="p-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full shadow-lg hover:from-purple-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, doc, getDoc, setDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+        let userId = null;
+        let username = null;
+        let simpleId = null;
+
+        // Get DOM elements
+        const messagesList = document.getElementById('messagesList');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        const simpleIdDisplay = document.getElementById('simpleIdDisplay');
+        const loadingIndicator = document.getElementById('loading');
+        const usernameSection = document.getElementById('usernameSection');
+        const usernameInput = document.getElementById('usernameInput');
+        const saveUsernameButton = document.getElementById('saveUsernameButton');
+        const messageInputContainer = document.getElementById('messageInputContainer');
+        const userInfoDisplay = document.getElementById('userInfoDisplay');
+
+        /**
+         * Generates a simple, random 4-character hex string for the user ID.
+         * @returns {string} The simple ID.
+         */
+        const generateSimpleId = () => {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        };
+
+        /**
+         * Initializes Firebase and sets up the auth listener.
+         */
+        const initializeFirebase = async () => {
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing.");
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for authentication state changes and set up UI
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        loadingIndicator.classList.add('hidden');
+                        
+                        // Check if user profile already exists
+                        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
+                        const userDocSnap = await getDoc(userDocRef);
+
+                        if (userDocSnap.exists()) {
+                            // User profile exists, load username and simpleId
+                            const userData = userDocSnap.data();
+                            username = userData.username;
+                            simpleId = userData.simpleId;
+                            updateUI();
+                            listenForMessages();
+                        } else {
+                            // New user, generate simpleId and show username prompt
+                            simpleId = generateSimpleId();
+                            usernameSection.classList.remove('hidden');
+                        }
+                    } else {
+                        userId = null;
+                        username = null;
+                        simpleId = null;
+                        loadingIndicator.textContent = "Please refresh to sign in";
+                    }
+                });
+
+            } catch (e) {
+                console.error("Error initializing Firebase or signing in:", e);
+                loadingIndicator.textContent = "Error: See console";
+            }
+        };
+
+        /**
+         * Updates the UI to show user info and the chat.
+         */
+        const updateUI = () => {
+            usernameDisplay.textContent = username;
+            simpleIdDisplay.textContent = simpleId;
+            userInfoDisplay.classList.remove('hidden');
+            usernameSection.classList.add('hidden');
+            messagesList.classList.remove('hidden');
+            messageInputContainer.classList.remove('hidden');
+        };
+
+        /**
+         * Sets up a real-time listener for messages.
+         */
+        const listenForMessages = () => {
+            const messagesRef = collection(db, `artifacts/${appId}/public/data/messages`);
+            
+            // Create a query to get messages
+            const messagesQuery = query(messagesRef);
+
+            onSnapshot(messagesQuery, (snapshot) => {
+                const messages = [];
+                snapshot.forEach(doc => {
+                    messages.push({ id: doc.id, ...doc.data() });
+                });
+
+                messages.sort((a, b) => a.timestamp - b.timestamp);
+                
+                renderMessages(messages);
+            }, (error) => {
+                console.error("Error listening to messages:", error);
+            });
+        };
+
+        /**
+         * Renders the list of messages in the chat UI.
+         * @param {Array} messages - An array of message objects.
+         */
+        const renderMessages = (messages) => {
+            messagesList.innerHTML = '';
+            messages.forEach(msg => {
+                const isUserMessage = msg.senderId === userId;
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('flex', 'flex-col', 'max-w-xs', 'md:max-w-sm', 'lg:max-w-md');
+
+                if (isUserMessage) {
+                    messageElement.classList.add('self-end');
+                } else {
+                    messageElement.classList.add('self-start');
+                }
+
+                const messageBubble = document.createElement('div');
+                messageBubble.classList.add('p-3', 'rounded-2xl', 'break-words', 'shadow-md');
+                messageBubble.classList.add(isUserMessage ? 'bg-purple-600' : 'bg-gray-700');
+                
+                const senderInfo = document.createElement('div');
+                senderInfo.classList.add('text-xs', 'text-gray-400', 'font-semibold', 'mb-1');
+
+                // Display username and simple ID for the sender
+                const senderName = msg.username || 'Anonymous';
+                const senderSimpleId = msg.simpleId ? ` (#${msg.simpleId})` : '';
+                senderInfo.textContent = isUserMessage ? `You (${username})` : `${senderName}${senderSimpleId}`;
+
+                const messageText = document.createElement('p');
+                messageText.classList.add('text-sm', 'text-white');
+                messageText.textContent = msg.text;
+
+                messageBubble.appendChild(senderInfo);
+                messageBubble.appendChild(messageText);
+
+                messageElement.appendChild(messageBubble);
+
+                messagesList.appendChild(messageElement);
+            });
+
+            messagesList.scrollTop = messagesList.scrollHeight;
+        };
+
+        /**
+         * Saves the username and simpleId to Firestore and updates the UI.
+         */
+        const saveUsername = async () => {
+            const newUsername = usernameInput.value.trim();
+            if (newUsername) {
+                username = newUsername;
+                
+                try {
+                    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
+                    await setDoc(userDocRef, {
+                        username: username,
+                        simpleId: simpleId,
+                        fullUserId: userId,
+                        lastActive: Date.now()
+                    });
+                    
+                    updateUI();
+                    listenForMessages();
+
+                } catch (e) {
+                    console.error("Error saving user data:", e);
+                }
+            }
+        };
+
+        /**
+         * Sends a new message to the Firestore database.
+         */
+        const sendMessage = async () => {
+            const text = messageInput.value.trim();
+            // Do not send empty messages or if user/username is not ready
+            if (text === "" || !userId || !username || !simpleId) {
+                return;
+            }
+
+            try {
+                // Add a new document to the "messages" collection, including the username and simpleId
+                await addDoc(collection(db, `artifacts/${appId}/public/data/messages`), {
+                    text: text,
+                    senderId: userId,
+                    username: username,
+                    simpleId: simpleId,
+                    timestamp: Date.now()
+                });
+                messageInput.value = ''; // Clear input field
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        };
+
+        // Event Listeners for the UI
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        saveUsernameButton.addEventListener('click', saveUsername);
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveUsername();
+            }
+        });
+
+        // Initialize the app when the window loads
+        window.onload = initializeFirebase;
+    </script>
+</body>
+</html>
